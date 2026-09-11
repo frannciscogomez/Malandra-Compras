@@ -180,6 +180,28 @@
     font-size:11px;color:var(--ink-faint);text-align:center;
     line-height:1.5;
   }
+  .howto{
+    margin-top:18px;background:var(--bg-panel);
+    border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .howto summary{
+    padding:14px;cursor:pointer;list-style:none;
+    display:flex;align-items:center;justify-content:space-between;
+    font-family:var(--display);font-weight:800;font-size:14px;
+    color:var(--gold);
+  }
+  .howto summary::-webkit-details-marker{display:none;}
+  .howto summary::after{content:"▾";color:var(--ink-faint);font-family:var(--sans);font-weight:400;transition:transform .15s ease;}
+  .howto[open] summary::after{transform:rotate(180deg);}
+  .howto-body{padding:0 16px 18px;font-size:13.5px;line-height:1.6;color:var(--ink);}
+  .howto-body h4{
+    font-family:var(--display);font-size:12.5px;color:var(--gold);
+    text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 4px;
+  }
+  .howto-body h4:first-child{margin-top:4px;}
+  .howto-body p{margin:0 0 4px;}
+  .howto-body b{color:var(--ink);}
   .loading{
     padding:60px 14px;text-align:center;color:var(--ink-dim);
     font-family:var(--mono);font-size:13px;
@@ -215,6 +237,32 @@
   <div id="app">
     <div class="loading">Cargando lista…</div>
   </div>
+
+  <details class="howto">
+    <summary>📋 Cómo usar esto</summary>
+    <div class="howto-body">
+      <h4>Cuándo se completa</h4>
+      <p>La completamos los <b>domingos a la noche</b> y los <b>miércoles a la noche</b>. Los pedidos salen lunes y jueves, para que lleguen martes y viernes.</p>
+
+      <h4>Cómo marcar lo que falta</h4>
+      <p>Buscás el proveedor y tocás el producto que se está por terminar. Le ponés la cantidad aproximada al lado. Queda anotado solo, no hace falta avisar por otro lado.</p>
+
+      <h4>Si falta algo que no está en la lista</h4>
+      <p>Abajo de todo, "Agregar producto faltante". Ponés el nombre, elegís el proveedor (si es algo suelto, va en "Otros") y tocás "Agregar a la lista".</p>
+
+      <h4>Una vez que terminaste de cargar todo</h4>
+      <p>Mandás el pedido armado al grupo con el botón verde <b>"Enviar lista completa por WhatsApp"</b>. Se arma el mensaje solo, ordenado por proveedor.</p>
+
+      <h4>Si es algo urgente de un solo proveedor</h4>
+      <p>No hace falta esperar a domingo o miércoles. Cada proveedor tiene su propio botón chiquito de <b>"WhatsApp"</b> al lado del nombre — te arma el mensaje solo de ese proveedor.</p>
+
+      <h4>Cuando llega el pedido</h4>
+      <p>Una vez que llegó la mercadería y ya está todo guardado, <b>antes</b> de cargar el pedido siguiente, tocá <b>"Reiniciar semana"</b> (arriba, al lado de "Editar"). Así arrancamos de cero.</p>
+
+      <h4>Ojo con esto</h4>
+      <p>El botón "Editar" es solo para sacar productos cargados por error. Si tocás algo sin querer ahí, avisá y lo vemos.</p>
+    </div>
+  </details>
 
   <footer>Lo que se marca acá queda visible para todos — cocina, barra y dueño, en tiempo real.</footer>
 </div>
