@@ -36,6 +36,17 @@
   }
   .wrap{max-width:640px;margin:0 auto;padding:0 14px;}
 
+  @media (min-width:900px){
+    .wrap{max-width:720px;padding:0 20px;}
+  }
+  @media (max-width:380px){
+    .wrap{padding:0 10px;}
+    .brand-name{font-size:19px;}
+    .reset-btn{font-size:10px;padding:5px 8px;}
+    .item-name{font-size:13.5px;}
+    .qty-input{width:64px;}
+  }
+
   /* header */
   header{
     position:sticky;top:0;z-index:20;
@@ -43,7 +54,7 @@
     padding:14px 0 12px;
     box-shadow:0 2px 8px rgba(173,30,31,0.25);
   }
-  header .brand{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  header .brand{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;row-gap:4px;}
   .brand-name, .brand-loc, .counter, .counter b{color:#FFFFFF !important;}
   header .reset-btn{border-color:rgba(255,255,255,0.5);color:#FFFFFF;}
   header .reset-btn:active{background:rgba(255,255,255,0.15);}
@@ -59,7 +70,7 @@
   }
   .status-row{
     display:flex;align-items:center;justify-content:space-between;
-    margin-top:10px;
+    margin-top:10px;flex-wrap:wrap;row-gap:8px;
   }
   .counter{
     display:flex;align-items:center;gap:8px;
@@ -216,7 +227,7 @@ const todayName = DAYS[new Date().getDay()];
 const DATA = [
   { name:"Garda", day:"Viernes", items:[
     "Mozzarella","Salsa Pomodoro","Peperoni","Jamón cocido","Parmesano","Nata","Bacon",
-    "Jamón serrano","Queso cabra","Sobrasada","Mortadela","Queso scamorza","Roquefort",
+    "Jamón serrano","Queso cabra","Sobrasada","Mortadela","Queso scamorza",
     "Pinsa","Harina H24","Harina H16","Pesto genovés","Burrata","Aceitunas","Aceitunas negras",
     "Pesto rosso","Crema de calabaza"
   ]},
@@ -225,7 +236,7 @@ const DATA = [
     "Cebolla y pimiento congelado","Verduras varias","Aceite","Aceite de oliva","Tomates",
     "Tomates cherry","Cebolla","Cebolla morada","Cebolla verdeo","Albahaca","Rúcula",
     "Morrones","Ajo","Champiñones","Guindillas","Piña","Palmitos","Morrones asados",
-    "Anchoas","Berenjenas","Calabacín","Cosito de pizza","Film","Papel aluminio","Hielo","Nata"
+    "Anchoas","Berenjenas","Calabacín","Cosito de pizza","Film","Papel aluminio","Hielo","Nata","Roquefort"
   ]},
   { name:"Maleta de Sabores", day:"Viernes", items:[
     "Orégano","Pimentón","Ají molido","Pimienta negra","Cayena","Sal","Muzzarella Argentina",
@@ -253,7 +264,8 @@ const DATA = [
   ]},
   { name:"Cafetería", day:"Día antes", items:[
     "Cápsula café","Cápsula descafeinado","Azúcar","Sacarina"
-  ]}
+  ]},
+  { name:"Otros", day:"", items:[] }
 ];
 
 function slug(s){ return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-"); }
@@ -326,7 +338,7 @@ function render(){
       totalMissing += allLines.length;
     }
   });
-  missingByGroup.sort((a,b) => (b.items.length + b.custom.length) - (a.items.length + a.custom.length));
+  missingByGroup.sort((a,b) => a.group.localeCompare(b.group, 'es'));
 
   ticket.innerHTML = `
     <div class="ticket-head">
@@ -414,7 +426,7 @@ function render(){
     ticket.appendChild(foot);
 
     const waBtn = document.createElement("button");
-    waBtn.textContent = "Enviar pedido por WhatsApp";
+    waBtn.textContent = "Enviar lista completa por WhatsApp";
     waBtn.style.cssText = "width:100%;margin-top:12px;background:#25D366;border:none;color:#FFFFFF;font-weight:700;padding:11px;border-radius:8px;cursor:pointer;font-size:13.5px;text-transform:uppercase;letter-spacing:0.5px;";
     waBtn.addEventListener("click", ()=>{
       let text = "Pedido Malandra - Santa Catalina (" + new Date().toLocaleDateString('es-ES',{day:'numeric',month:'short'}) + ")\n\n";
@@ -446,7 +458,7 @@ function render(){
     const customForGroup = Object.values(state.custom||{}).filter(c => c.provider === g.name);
     const missingCount = activeItems.filter(it => state[itemId(g.name,it)]?.falta).length + customForGroup.length;
     return { g, activeItems, customForGroup, missingCount };
-  }).sort((a,b) => b.missingCount - a.missingCount);
+  }).sort((a,b) => a.g.name.localeCompare(b.g.name, 'es'));
 
   sortedGroups.forEach(({g, activeItems, customForGroup, missingCount})=>{
     const isOpen = openGroups.has(g.name);
@@ -456,15 +468,49 @@ function render(){
 
     const head = document.createElement("div");
     head.className = "group-head";
-    head.innerHTML = `
-      <div class="group-head-left">
-        <span class="group-name">${g.name}</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span class="group-count">${missingCount ? missingCount+' falta' : ''}</span>
-        <span class="chevron">▾</span>
-      </div>
-    `;
+
+    const leftDiv = document.createElement("div");
+    leftDiv.className = "group-head-left";
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "group-name";
+    nameSpan.textContent = g.name;
+    leftDiv.appendChild(nameSpan);
+
+    const rightDiv = document.createElement("div");
+    rightDiv.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;";
+
+    if(missingCount){
+      const waMini = document.createElement("span");
+      waMini.textContent = "WhatsApp";
+      waMini.style.cssText = "font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#25D366;border:1px solid #25D366;border-radius:20px;padding:3px 8px;cursor:pointer;white-space:nowrap;";
+      waMini.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        let text = `Pedido Malandra - ${g.name} (${new Date().toLocaleDateString('es-ES',{day:'numeric',month:'short'})})\n\n`;
+        activeItems.filter(it => state[itemId(g.name,it)]?.falta).forEach(it=>{
+          const qty = state[itemId(g.name,it)]?.qty || "";
+          text += "- " + it + (qty ? " (" + qty + ")" : "") + "\n";
+        });
+        customForGroup.forEach(c=>{
+          text += "- " + c.name + (c.qty ? " (" + c.qty + ")" : "") + "\n";
+        });
+        window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+      });
+      rightDiv.appendChild(waMini);
+    }
+
+    const countSpan = document.createElement("span");
+    countSpan.className = "group-count";
+    countSpan.textContent = missingCount ? missingCount + " falta" : "";
+    rightDiv.appendChild(countSpan);
+
+    const chevronSpan = document.createElement("span");
+    chevronSpan.className = "chevron";
+    chevronSpan.textContent = "▾";
+    rightDiv.appendChild(chevronSpan);
+
+    head.appendChild(leftDiv);
+    head.appendChild(rightDiv);
+
     head.addEventListener("click", ()=>{
       if(openGroups.has(g.name)) openGroups.delete(g.name);
       else openGroups.add(g.name);
