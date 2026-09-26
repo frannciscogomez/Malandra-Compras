@@ -331,9 +331,30 @@ async function loadState(){
     state = json || {};
     state.custom = state.custom || {};
     state.deletedPredefined = state.deletedPredefined || {};
+    state.movedItems = state.movedItems || {};
   }catch(e){
-    state = { custom:{} };
+    state = { custom:{}, deletedPredefined:{}, movedItems:{} };
   }
+}
+
+// Returns the predefined items that should visually appear under `providerName`,
+// accounting for items the owner moved to a different provider. Each entry keeps
+// its ORIGINAL id (so falta/qty/history stay attached) plus its originalProvider
+// (so the UI can tell where it "belongs" natively).
+function effectiveItemsForProvider(providerName){
+  const result = [];
+  DATA.forEach(g=>{
+    g.items.forEach(it=>{
+      const id = itemId(g.name, it);
+      if(state.deletedPredefined?.[id]) return;
+      const dest = state.movedItems?.[id];
+      const effective = dest || g.name;
+      if(effective === providerName){
+        result.push({ id, name: it, originalProvider: g.name });
+      }
+    });
+  });
+  return result;
 }
 
 let isSaving = false;
@@ -377,13 +398,12 @@ function render(){
   let missingByGroup = [];
   let totalMissing = 0;
   DATA.forEach(g=>{
-    const activeItems = g.items.filter(it => !state.deletedPredefined?.[itemId(g.name,it)]);
-    const lines = activeItems.filter(it => state[itemId(g.name,it)]?.falta);
-    const customLines = Object.values(state.custom||{}).filter(c => c.provider === g.name).map(c => c.name);
-    const allLines = [...lines, ...customLines];
-    if(allLines.length){
-      missingByGroup.push({group:g.name, items: lines, custom: Object.values(state.custom||{}).filter(c => c.provider === g.name)});
-      totalMissing += allLines.length;
+    const effectiveItems = effectiveItemsForProvider(g.name);
+    const lines = effectiveItems.filter(x => state[x.id]?.falta);
+    const customLines = Object.values(state.custom||{}).filter(c => c.provider === g.name && state[c.id]?.falta);
+    if(lines.length + customLines.length){
+      missingByGroup.push({group:g.name, items: lines, custom: customLines});
+      totalMissing += lines.length + customLines.length;
     }
   });
   missingByGroup.sort((a,b) => a.group.localeCompare(b.group, 'es'));
@@ -408,14 +428,14 @@ function render(){
       gName.className = "ticket-group-name";
       gName.textContent = mg.group;
       gDiv.appendChild(gName);
-      mg.items.forEach(it=>{
-        const id = itemId(mg.group,it);
+      mg.items.forEach(x=>{
+        const id = x.id;
         const qty = state[id]?.qty || "";
         const line = document.createElement("div");
         line.className = "ticket-line";
 
         const left = document.createElement("span");
-        left.textContent = it;
+        left.textContent = x.name;
 
         const right = document.createElement("span");
         right.style.cssText = "display:flex;align-items:center;gap:8px;";
@@ -449,13 +469,13 @@ function render(){
         right.style.cssText = "display:flex;align-items:center;gap:8px;";
         const qtySpan = document.createElement("span");
         qtySpan.className = "q";
-        qtySpan.textContent = c.qty ? c.qty : "—";
+        qtySpan.textContent = state[c.id]?.qty ? state[c.id].qty : "—";
         const doneBtn = document.createElement("span");
         doneBtn.textContent = "✕";
         doneBtn.title = "Ya pedido";
         doneBtn.style.cssText = "color:var(--ink-faint);cursor:pointer;font-weight:800;padding:0 2px;";
         doneBtn.addEventListener("click", async ()=>{
-          delete state.custom[c.id];
+          state[c.id].falta = false;
           render();
           await saveState();
         });
@@ -480,12 +500,12 @@ function render(){
       let text = "Pedido Malandra - Santa Catalina (" + new Date().toLocaleDateString('es-ES',{day:'numeric',month:'short'}) + ")\n\n";
       missingByGroup.forEach(mg=>{
         text += "*" + mg.group + "*\n";
-        mg.items.forEach(it=>{
-          const qty = state[itemId(mg.group,it)]?.qty || "";
-          text += "- " + it + (qty ? " (" + qty + ")" : "") + "\n";
+        mg.items.forEach(x=>{
+          const qty = state[x.id]?.qty || "";
+          text += "- " + x.name + (qty ? " (" + qty + ")" : "") + "\n";
         });
         (mg.custom||[]).forEach(c=>{
-          text += "- " + c.name + (c.qty ? " (" + c.qty + ")" : "") + "\n";
+          text += "- " + c.name + (state[c.id]?.qty ? " (" + state[c.id].qty + ")" : "") + "\n";
         });
         text += "\n";
       });
@@ -502,11 +522,30 @@ function render(){
   groupsWrap.className = "groups";
 
   const sortedGroups = DATA.map(g=>{
-    const activeItems = g.items.filter(it => !state.deletedPredefined?.[itemId(g.name,it)]);
+    const activeItems = effectiveItemsForProvider(g.name); // [{id,name,originalProvider}]
     const customForGroup = Object.values(state.custom||{}).filter(c => c.provider === g.name);
-    const missingCount = activeItems.filter(it => state[itemId(g.name,it)]?.falta).length + customForGroup.length;
+    const missingCount = activeItems.filter(x => state[x.id]?.falta).length + customForGroup.filter(c => state[c.id]?.falta).length;
     return { g, activeItems, customForGroup, missingCount };
   }).sort((a,b) => a.g.name.localeCompare(b.g.name, 'es'));
+
+  const allProviderNames = DATA.map(g => g.name);
+  function buildProviderSelect(currentValue, onChange){
+    const sel = document.createElement("select");
+    sel.style.cssText = "background:var(--bg-row);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 6px;font-size:11.5px;margin-left:6px;";
+    allProviderNames.forEach(name=>{
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      if(name === currentValue) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("click", (e)=> e.stopPropagation());
+    sel.addEventListener("change", async (e)=>{
+      e.stopPropagation();
+      await onChange(e.target.value);
+    });
+    return sel;
+  }
 
   sortedGroups.forEach(({g, activeItems, customForGroup, missingCount})=>{
     const isOpen = openGroups.has(g.name);
@@ -534,12 +573,13 @@ function render(){
       waMini.addEventListener("click", (e)=>{
         e.stopPropagation();
         let text = `Pedido Malandra - ${g.name} (${new Date().toLocaleDateString('es-ES',{day:'numeric',month:'short'})})\n\n`;
-        activeItems.filter(it => state[itemId(g.name,it)]?.falta).forEach(it=>{
-          const qty = state[itemId(g.name,it)]?.qty || "";
-          text += "- " + it + (qty ? " (" + qty + ")" : "") + "\n";
+        activeItems.filter(x => state[x.id]?.falta).forEach(x=>{
+          const qty = state[x.id]?.qty || "";
+          text += "- " + x.name + (qty ? " (" + qty + ")" : "") + "\n";
         });
-        customForGroup.forEach(c=>{
-          text += "- " + c.name + (c.qty ? " (" + c.qty + ")" : "") + "\n";
+        customForGroup.filter(c => state[c.id]?.falta).forEach(c=>{
+          const qty = state[c.id]?.qty || "";
+          text += "- " + c.name + (qty ? " (" + qty + ")" : "") + "\n";
         });
         window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
       });
@@ -569,8 +609,8 @@ function render(){
     const itemsWrap = document.createElement("div");
     itemsWrap.className = "group-items";
 
-    activeItems.forEach(it=>{
-      const id = itemId(g.name,it);
+    activeItems.forEach(x=>{
+      const id = x.id;
       const s = state[id] || {falta:false, qty:""};
       const row = document.createElement("div");
       row.className = "item" + (s.falta ? " on" : "");
@@ -587,7 +627,7 @@ function render(){
 
       const name = document.createElement("div");
       name.className = "item-name";
-      name.textContent = it;
+      name.textContent = x.name;
 
       row.appendChild(check);
       row.appendChild(name);
@@ -606,11 +646,21 @@ function render(){
       }
 
       if(editMode){
+        const moveSel = buildProviderSelect(g.name, async (newProv)=>{
+          state.movedItems = state.movedItems || {};
+          if(newProv === x.originalProvider){ delete state.movedItems[id]; }
+          else { state.movedItems[id] = newProv; }
+          openGroups.add(newProv);
+          render();
+          await saveState();
+        });
+        row.appendChild(moveSel);
+
         const delBtn = document.createElement("div");
         delBtn.textContent = "✕";
         delBtn.style.cssText = "color:var(--clay);font-size:15px;font-weight:800;padding:0 6px;cursor:pointer;";
         delBtn.addEventListener("click", async ()=>{
-          if(!confirm(`¿Borrar "${it}" de la lista?`)) return;
+          if(!confirm(`¿Borrar "${x.name}" de la lista?`)) return;
           state.deletedPredefined = state.deletedPredefined || {};
           state.deletedPredefined[id] = true;
           delete state[id];
@@ -624,38 +674,56 @@ function render(){
     });
 
     customForGroup.forEach(c=>{
+      const s = state[c.id] || {falta:false, qty:""};
       const row = document.createElement("div");
-      row.className = "item on";
+      row.className = "item" + (s.falta ? " on" : "");
 
       const check = document.createElement("div");
-      check.className = "check on";
+      check.className = "check" + (s.falta ? " on" : "");
       check.textContent = "✓";
-      check.style.cursor = "default";
+      check.addEventListener("click", async ()=>{
+        state[c.id] = state[c.id] || {falta:false, qty:""};
+        state[c.id].falta = !state[c.id].falta;
+        render();
+        await saveState();
+      });
 
       const name = document.createElement("div");
       name.className = "item-name";
       name.textContent = c.name;
 
-      const qtyInput = document.createElement("input");
-      qtyInput.className = "qty-input";
-      qtyInput.placeholder = "cant.";
-      qtyInput.value = c.qty || "";
-      qtyInput.addEventListener("change", async (e)=>{
-        state.custom[c.id].qty = e.target.value;
-        await saveState();
-        render();
-      });
-
       row.appendChild(check);
       row.appendChild(name);
-      row.appendChild(qtyInput);
+
+      if(s.falta){
+        const qtyInput = document.createElement("input");
+        qtyInput.className = "qty-input";
+        qtyInput.placeholder = "cant.";
+        qtyInput.value = s.qty || "";
+        qtyInput.addEventListener("change", async (e)=>{
+          state[c.id].qty = e.target.value;
+          await saveState();
+          render();
+        });
+        row.appendChild(qtyInput);
+      }
+
       if(editMode){
+        const moveSel = buildProviderSelect(c.provider, async (newProv)=>{
+          state.custom[c.id].provider = newProv;
+          openGroups.add(newProv);
+          render();
+          await saveState();
+        });
+        row.appendChild(moveSel);
+
         const delBtn = document.createElement("div");
         delBtn.textContent = "✕";
         delBtn.style.cssText = "color:var(--clay);font-size:15px;font-weight:800;padding:0 6px;cursor:pointer;";
         delBtn.addEventListener("click", async ()=>{
           if(!confirm(`¿Borrar "${c.name}" de la lista?`)) return;
           delete state.custom[c.id];
+          delete state[c.id];
           render();
           await saveState();
         });
@@ -701,7 +769,8 @@ function render(){
     if(!name) { nameInput.focus(); return; }
     const id = "custom-" + Date.now();
     state.custom = state.custom || {};
-    state.custom[id] = { id, name, provider: providerSelect.value, qty: "" };
+    state.custom[id] = { id, name, provider: providerSelect.value };
+    state[id] = { falta: true, qty: "" };
     openGroups.add(providerSelect.value);
     render();
     await saveState();
@@ -718,8 +787,12 @@ document.getElementById("editBtn").addEventListener("click", ()=>{
 });
 
 document.getElementById("resetBtn").addEventListener("click", async ()=>{
-  if(!confirm("¿Reiniciar la lista? Se van a desmarcar todos los productos.")) return;
-  state = {};
+  if(!confirm("¿Reiniciar la lista? Se van a desmarcar todos los productos (los que agregaste vos quedan guardados, solo se destildan).")) return;
+  Object.keys(state).forEach(k=>{
+    if(k !== "custom" && k !== "deletedPredefined" && k !== "movedItems"){
+      delete state[k];
+    }
+  });
   render();
   await saveState();
 });
@@ -747,6 +820,7 @@ async function pollState(){
     const merged = json || {};
     merged.custom = merged.custom || {};
     merged.deletedPredefined = merged.deletedPredefined || {};
+    merged.movedItems = merged.movedItems || {};
     const freshJSON = JSON.stringify(merged);
     if(freshJSON !== lastStateJSON){
       state = merged;
