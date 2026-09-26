@@ -321,7 +321,7 @@ function slug(s){ return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036
 const STORAGE_URL = "https://script.google.com/macros/s/AKfycbxywt-VpZSjqS_FgeE_hXFxcPkxZLTuUpW2ptYAV2hFULzKY-zTlF_qrI_giKGm1zODFw/exec";
 
 let state = {};       // { itemId: { falta:bool, qty:string } }
-let openGroups = new Set([DATA[0].name]); // first group open by default
+let openGroups = new Set(); // all providers start closed
 let editMode = false;
 
 async function loadState(){
