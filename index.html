@@ -281,10 +281,13 @@ const DATA = [
   ]},
   { name:"Makro", day:"Semanal", items:[
     "Pollo","Pulled pork","Cheddar","Barbacoa","Ketchup","Mostaza","Miel","Mayonesa",
-    "Cebolla y pimiento congelado","Verduras varias","Aceite","Aceite de oliva","Tomates",
-    "Tomates cherry","Cebolla","Cebolla morada","Cebolla verdeo","Albahaca","Rúcula",
-    "Morrones","Ajo","Champiñones","Guindillas","Piña","Palmitos","Morrones asados",
-    "Anchoas","Berenjenas","Calabacín","Cosito de pizza","Film","Papel aluminio","Hielo","Nata","Roquefort"
+    "Cebolla y pimiento congelado","Aceite","Aceite de oliva","Palmitos","Morrones asados",
+    "Anchoas","Cosito de pizza","Film","Papel aluminio","Hielo","Nata","Roquefort"
+  ]},
+  { name:"Verdulería", day:"", items:[
+    "Tomates","Tomates cherry","Cebolla","Cebolla morada","Cebolla verdeo","Ajo",
+    "Morrones","Berenjenas","Calabacín","Champiñones","Rúcula","Albahaca","Guindillas",
+    "Piña","Verduras varias"
   ]},
   { name:"Maleta de Sabores", day:"Viernes", items:[
     "Orégano","Pimentón","Ají molido","Pimienta negra","Cayena","Sal","Muzzarella Argentina",
@@ -385,7 +388,19 @@ function showError(msg){
   setTimeout(()=>div.remove(), 3500);
 }
 
-function itemId(groupName, itemName){ return slug(groupName)+"__"+slug(itemName); }
+// La Verdulería se separó de Makro (nov 2026). Estos productos conservan su id
+// viejo de Makro para no perder lo que ya estaba marcado, las cantidades ni lo
+// que se haya borrado o movido con "Editar".
+const EX_MAKRO = [
+  "Tomates","Tomates cherry","Cebolla","Cebolla morada","Cebolla verdeo","Ajo",
+  "Morrones","Berenjenas","Calabacín","Champiñones","Rúcula","Albahaca","Guindillas",
+  "Piña","Verduras varias"
+];
+
+function itemId(groupName, itemName){
+  if(groupName === "Verdulería" && EX_MAKRO.includes(itemName)) return "makro__" + slug(itemName);
+  return slug(groupName)+"__"+slug(itemName);
+}
 
 function render(){
   const app = document.getElementById("app");
